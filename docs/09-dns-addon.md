@@ -31,7 +31,7 @@ kube-dns   10.32.0.10   <none>        53/UDP,53/TCP   5s
 Create the `kubedns` deployment:
 
 ```
-kubectl create -f https://raw.githubusercontent.com/kelseyhightower/kubernetes-the-hard-way/master/deployments/kubedns.yaml
+kubectl create -f https://raw.githubusercontent.com/jasonbrooks/kubernetes-the-hard-way/atomic/deployments/kubedns.yaml
 ```
 
 ```

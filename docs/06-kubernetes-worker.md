@@ -1,10 +1,9 @@
 # Bootstrapping Kubernetes Workers
 
-In this lab you will bootstrap 3 Kubernetes worker nodes. The following virtual machines will be used:
+In this lab you will bootstrap 2 Kubernetes worker nodes. The following virtual machines will be used:
 
 * worker0
 * worker1
-* worker2
 
 ## Why
 
@@ -19,9 +18,7 @@ Some people would like to run workers and cluster services anywhere in the clust
 
 Each worker node will provision a unique TLS client certificate as defined in the [kubelet TLS bootstrapping guide](https://kubernetes.io/docs/admin/kubelet-tls-bootstrapping/). The `kubelet-bootstrap` user must be granted permission to request a client TLS certificate. 
 
-```
-gcloud compute ssh controller0
-```
+Run the following steps from your `controller0` VM
 
 Enable TLS bootstrapping by binding the `kubelet-bootstrap` user to the `system:node-bootstrapper` cluster role:
 
@@ -33,7 +30,7 @@ kubectl create clusterrolebinding kubelet-bootstrap \
 
 ## Provision the Kubernetes Worker Nodes
 
-Run the following commands on `worker0`, `worker1`, `worker2`:
+Run the following commands on `worker0`, `worker1`:
 
 ```
 sudo mkdir -p /var/lib/{kubelet,kube-proxy,kubernetes}
@@ -57,104 +54,19 @@ Move the TLS certificates in place
 sudo mv ca.pem /var/lib/kubernetes/
 ```
 
-### Install Docker
-
-```
-wget https://get.docker.com/builds/Linux/x86_64/docker-1.12.6.tgz
-```
-
-```
-tar -xvf docker-1.12.6.tgz
-```
-
-```
-sudo cp docker/docker* /usr/bin/
-```
-
-Create the Docker systemd unit file:
-
-```
-cat > docker.service <<EOF
-[Unit]
-Description=Docker Application Container Engine
-Documentation=http://docs.docker.io
-
-[Service]
-ExecStart=/usr/bin/docker daemon \\
-  --iptables=false \\
-  --ip-masq=false \\
-  --host=unix:///var/run/docker.sock \\
-  --log-level=error \\
-  --storage-driver=overlay
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-```
-
-Start the docker service:
-
-```
-sudo mv docker.service /etc/systemd/system/docker.service
-```
-
-```
-sudo systemctl daemon-reload
-```
-
-```
-sudo systemctl enable docker
-```
-
-```
-sudo systemctl start docker
-```
-
-```
-sudo docker version
-```
-
-### Install the kubelet
+### Install CNI plugins
 
 The Kubelet can now use [CNI - the Container Network Interface](https://github.com/containernetworking/cni) to manage machine level networking requirements.
 
-Download and install CNI plugins
+Install CNI plugins
 
 ```
-sudo mkdir -p /opt/cni
+sudo rpm-ostree install containernetworking-cni
+
+sudo rpm-ostree ex livefs
 ```
 
-```
-wget https://storage.googleapis.com/kubernetes-release/network-plugins/cni-amd64-0799f5732f2a11b329d9e3d51b9c8f2e3759f2ff.tar.gz
-```
-
-```
-sudo tar -xvf cni-amd64-0799f5732f2a11b329d9e3d51b9c8f2e3759f2ff.tar.gz -C /opt/cni
-```
-
-Download and install the Kubernetes worker binaries:
-
-```
-wget https://storage.googleapis.com/kubernetes-release/release/v1.6.1/bin/linux/amd64/kubectl
-```
-
-```
-wget https://storage.googleapis.com/kubernetes-release/release/v1.6.1/bin/linux/amd64/kube-proxy
-```
-
-```
-wget https://storage.googleapis.com/kubernetes-release/release/v1.6.1/bin/linux/amd64/kubelet
-```
-
-```
-chmod +x kubectl kube-proxy kubelet
-```
-
-```
-sudo mv kubectl kube-proxy kubelet /usr/bin/
-```
+### Configure kubelet
 
 Create the kubelet systemd unit file:
 
@@ -179,13 +91,17 @@ ExecStart=/usr/bin/kubelet \\
   --cluster-domain=cluster.local \\
   --container-runtime=docker \\
   --experimental-bootstrap-kubeconfig=/var/lib/kubelet/bootstrap.kubeconfig \\
-  --network-plugin=kubenet \\
   --kubeconfig=/var/lib/kubelet/kubeconfig \\
   --serialize-image-pulls=false \\
   --register-node=true \\
   --tls-cert-file=/var/lib/kubelet/kubelet-client.crt \\
   --tls-private-key-file=/var/lib/kubelet/kubelet-client.key \\
   --cert-dir=/var/lib/kubelet \\
+  --cgroup-driver=systemd \\
+  --network-plugin=cni \\
+  --cni-conf-dir=/etc/cni/net.d \\
+  --cni-bin-dir=/usr/libexec/cni \\
+  --address=0.0.0.0 \\
   --v=2
 Restart=on-failure
 RestartSec=5
@@ -197,6 +113,8 @@ EOF
 
 ```
 sudo mv kubelet.service /etc/systemd/system/kubelet.service
+
+sudo restorecon /etc/systemd/system/kubelet.service
 ```
 
 ```
@@ -225,7 +143,6 @@ Documentation=https://github.com/GoogleCloudPlatform/kubernetes
 
 [Service]
 ExecStart=/usr/bin/kube-proxy \\
-  --cluster-cidr=10.200.0.0/16 \\
   --masquerade-all=true \\
   --kubeconfig=/var/lib/kube-proxy/kube-proxy.kubeconfig \\
   --proxy-mode=iptables \\
@@ -240,6 +157,8 @@ EOF
 
 ```
 sudo mv kube-proxy.service /etc/systemd/system/kube-proxy.service
+
+sudo restorecon /etc/systemd/system/kube-proxy.service
 ```
 
 ```
@@ -258,17 +177,13 @@ sudo systemctl start kube-proxy
 sudo systemctl status kube-proxy --no-pager
 ```
 
-> Remember to run these steps on `worker0`, `worker1`, and `worker2`
+> Remember to run these steps on `worker0`, and `worker1`
 
 ## Approve the TLS certificate requests
 
 Each worker node will submit a certificate signing request which must be approved before the node is allowed to join the cluster.
 
-Log into one of the controller nodes:
-
-```
-gcloud compute ssh controller0
-```
+Log into your controller node:
 
 List the pending certificate requests:
 
@@ -300,8 +215,8 @@ kubectl get nodes
 ```
 
 ```
-NAME      STATUS    AGE       VERSION
-worker0   Ready     7m        v1.6.1
-worker1   Ready     5m        v1.6.1
-worker2   Ready     2m        v1.6.1
+NAME             STATUS     AGE       VERSION
+fah-2.osas.lab   NotReady   1m        v1.6.7
+fah-3.osas.lab   NotReady   1m        v1.6.7
 ```
+The nodes will switch to `Ready` once you complete the [Managing the Container Overlay Network](docs/08-network.md) portion of this guide.

@@ -1,15 +1,10 @@
 # Bootstrapping a H/A etcd cluster
 
-In this lab you will bootstrap a 3 node etcd cluster. The following virtual machines will be used:
-
-* controller0
-* controller1
-* controller2
+In this lab you will bootstrap a single node etcd cluster using your `controller0` VM.
 
 ## Why
 
-All Kubernetes components are stateless which greatly simplifies managing a Kubernetes cluster. All state is stored
-in etcd, which is a database and must be treated specially. To limit the number of compute resource to complete this lab etcd is being installed on the Kubernetes controller nodes, although some people will prefer to run etcd on a dedicated set of machines for the following reasons:
+All Kubernetes components are stateless which greatly simplifies managing a Kubernetes cluster. All state is stored in etcd, which is a database and must be treated specially. To limit the number of compute resource to complete this lab etcd is being installed on the single Kubernetes controller node, although some people will prefer to run etcd on a dedicated set of machines for the following reasons:
 
 * The etcd lifecycle is not tied to Kubernetes. We should be able to upgrade etcd independently of Kubernetes.
 * Scaling out etcd is different than scaling out the Kubernetes Control Plane.
@@ -19,7 +14,7 @@ However, all the e2e tested configurations currently run etcd on the master node
 
 ## Provision the etcd Cluster
 
-Run the following commands on `controller0`, `controller1`, `controller2`:
+Run the following commands on `controller0`:
 
 ### TLS Certificates
 
@@ -35,24 +30,6 @@ sudo mkdir -p /etc/etcd/
 sudo cp ca.pem kubernetes-key.pem kubernetes.pem /etc/etcd/
 ```
 
-### Download and Install the etcd binaries
-
-Download the official etcd release binaries from `coreos/etcd` GitHub project:
-
-```
-wget https://github.com/coreos/etcd/releases/download/v3.1.4/etcd-v3.1.4-linux-amd64.tar.gz
-```
-
-Extract and install the `etcd` server binary and the `etcdctl` command line client: 
-
-```
-tar -xvf etcd-v3.1.4-linux-amd64.tar.gz
-```
-
-```
-sudo mv etcd-v3.1.4-linux-amd64/etcd* /usr/bin/
-```
-
 All etcd data is stored under the etcd data directory. In a production cluster the data directory should be backed by a persistent disk. Create the etcd data directory:
 
 ```
@@ -64,8 +41,7 @@ sudo mkdir -p /var/lib/etcd
 The internal IP address will be used by etcd to serve client requests and communicate with other etcd peers.
 
 ```
-INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" \
-  http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
+INTERNAL_IP=YOUR-CONTROLLER0-IP
 ```
 
 Each etcd member must have a unique name within an etcd cluster. Set the etcd name:
@@ -98,7 +74,6 @@ ExecStart=/usr/bin/etcd \\
   --listen-client-urls https://${INTERNAL_IP}:2379,http://127.0.0.1:2379 \\
   --advertise-client-urls https://${INTERNAL_IP}:2379 \\
   --initial-cluster-token etcd-cluster-0 \\
-  --initial-cluster controller0=https://10.240.0.10:2380,controller1=https://10.240.0.11:2380,controller2=https://10.240.0.12:2380 \\
   --initial-cluster-state new \\
   --data-dir=/var/lib/etcd
 Restart=on-failure
@@ -113,6 +88,7 @@ Once the etcd systemd unit file is ready, move it to the systemd system director
 
 ```
 sudo mv etcd.service /etc/systemd/system/
+sudo restorecon /etc/systemd/system/etcd.service
 ```
 
 Start the etcd server:
@@ -133,13 +109,11 @@ sudo systemctl start etcd
 sudo systemctl status etcd --no-pager
 ```
 
-> Remember to run these steps on `controller0`, `controller1`, and `controller2`
-
 ## Verification
 
-Once all 3 etcd nodes have been bootstrapped verify the etcd cluster is healthy:
+Once the etcd node has been bootstrapped verify the etcd cluster is healthy:
 
-* On one of the controller nodes run the following command:
+* On your controller node run the following command:
 
 ```
 sudo etcdctl \
@@ -150,8 +124,6 @@ sudo etcdctl \
 ```
 
 ```
-member 3a57933972cb5131 is healthy: got healthy result from https://10.240.0.12:2379
-member f98dc20bce6225a0 is healthy: got healthy result from https://10.240.0.10:2379
-member ffed16798470cab5 is healthy: got healthy result from https://10.240.0.11:2379
+member 52ffd6849664e3a2 is healthy: got healthy result from https://10.10.171.89:2379
 cluster is healthy
 ```

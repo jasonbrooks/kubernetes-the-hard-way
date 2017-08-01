@@ -5,7 +5,7 @@ This lab walks you through a quick smoke test to make sure things are working.
 ## Test
 
 ```
-kubectl run nginx --image=nginx --port=80 --replicas=3
+kubectl run nginx --image=nginx --port=80 --replicas=2
 ```
 
 ```
@@ -13,9 +13,8 @@ kubectl get pods -o wide
 ```
 ```
 NAME                    READY     STATUS    RESTARTS   AGE       IP           NODE
-nginx-158599303-7k8p9   1/1       Running   0          13s       10.200.2.3   worker2
-nginx-158599303-h0zcs   1/1       Running   0          13s       10.200.1.2   worker1
-nginx-158599303-rfhm3   1/1       Running   0          13s       10.200.0.2   worker0
+nginx-158599303-6x957   1/1       Running   0          17s       10.200.1.3   fah-3.osas.lab
+nginx-158599303-vcjqd   1/1       Running   0          17s       10.200.0.2   fah-2.osas.lab
 ```
 
 ```
@@ -28,21 +27,6 @@ Grab the `NodePort` that was setup for the nginx service:
 
 ```
 NODE_PORT=$(kubectl get svc nginx --output=jsonpath='{range .spec.ports[0]}{.nodePort}')
-```
-
-### Create the Node Port Firewall Rule
-
-```
-gcloud compute firewall-rules create kubernetes-nginx-service \
-  --allow=tcp:${NODE_PORT} \
-  --network kubernetes-the-hard-way
-```
-
-Grab the `EXTERNAL_IP` for one of the worker nodes:
-
-```
-NODE_PUBLIC_IP=$(gcloud compute instances describe worker0 \
-  --format 'value(networkInterfaces[0].accessConfigs[0].natIP)')
 ```
 
 Test the nginx service using cURL:

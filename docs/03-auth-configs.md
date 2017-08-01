@@ -2,26 +2,6 @@
 
 In this lab you will setup the necessary authentication configs to enable Kubernetes clients to bootstrap and authenticate using RBAC (Role-Based Access Control).
 
-## Download and Install kubectl
-
-The kubectl client will be used to generate kubeconfig files which will be consumed by the kubelet and kube-proxy services.
-
-### OS X
-
-```
-wget https://storage.googleapis.com/kubernetes-release/release/v1.6.1/bin/darwin/amd64/kubectl
-chmod +x kubectl
-sudo mv kubectl /usr/local/bin
-```
-
-### Linux
-
-```
-wget https://storage.googleapis.com/kubernetes-release/release/v1.6.1/bin/linux/amd64/kubectl
-chmod +x kubectl
-sudo mv kubectl /usr/local/bin
-```
-
 ## Authentication
 
 The following components will leverage Kubernetes RBAC:
@@ -33,6 +13,8 @@ The following components will leverage Kubernetes RBAC:
 The other components, mainly the `scheduler` and `controller manager`, access the Kubernetes API server locally over the insecure API port which does not require authentication. The insecure port is only enabled for local access.
 
 ### Create the TLS Bootstrap Token
+
+Run these steps from your `controller0` VM.
 
 This section will walk you through the creation of a TLS bootstrap token that will be used to [bootstrap TLS client certificates for kubelets](https://kubernetes.io/docs/admin/kubelet-tls-bootstrapping/).
 
@@ -50,14 +32,6 @@ ${BOOTSTRAP_TOKEN},kubelet-bootstrap,10001,"system:kubelet-bootstrap"
 EOF
 ```
 
-Distribute the bootstrap token file to each controller node:
-
-```
-for host in controller0 controller1 controller2; do
-  gcloud compute scp token.csv ${host}:~/
-done
-```
-
 ## Client Authentication Configs
 
 This section will walk you through creating kubeconfig files that will be used to bootstrap kubelets, which will then generate their own kubeconfigs based on dynamically generated certificates, and a kubeconfig for authenticating kube-proxy clients.
@@ -67,9 +41,7 @@ Each kubeconfig requires a Kubernetes master to connect to. To support H/A the I
 ### Set the Kubernetes Public Address
 
 ```
-KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe kubernetes-the-hard-way \
-  --region us-central1 \
-  --format 'value(address)')
+KUBERNETES_PUBLIC_ADDRESS=YOUR-CONTROLLER0-IP
 ```
 
 ## Create client kubeconfig files
@@ -134,7 +106,11 @@ kubectl config use-context default --kubeconfig=kube-proxy.kubeconfig
 ## Distribute the client kubeconfig files
 
 ```
-for host in worker0 worker1 worker2; do
-  gcloud compute scp bootstrap.kubeconfig kube-proxy.kubeconfig ${host}:~/
+worker0=YOUR-NODE-1-IP
+
+worker1=YOUR-NODE-2-IP
+
+for host in $worker0 $worker1; do
+  scp bootstrap.kubeconfig kube-proxy.kubeconfig ${host}:~/
 done
 ```
