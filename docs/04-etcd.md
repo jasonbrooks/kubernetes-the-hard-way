@@ -1,4 +1,4 @@
-# Bootstrapping a H/A etcd cluster
+# Bootstrapping an etcd cluster
 
 In this lab you will bootstrap a single node etcd cluster using your `controller0` VM.
 

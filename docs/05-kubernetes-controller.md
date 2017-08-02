@@ -1,4 +1,4 @@
-# Bootstrapping an H/A Kubernetes Control Plane
+# Bootstrapping a Kubernetes Control Plane
 
 In this lab you will bootstrap a single node Kubernetes controller cluster. The following virtual machine will be used:
 
